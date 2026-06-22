@@ -32,3 +32,11 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+model BrandSettings {
+  shop        String   @id
+  logoUrl     String?
+  accentColor String?
+  fontFamily  String?
+  updatedAt   DateTime @updatedAt
+}
