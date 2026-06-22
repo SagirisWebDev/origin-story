@@ -15,6 +15,16 @@ import {
   saveStory,
   validateStory,
 } from "../models/ProductStory.server.js";
+import { generate as generateQRCode } from "../lib/QRCodeGenerator.server.js";
+
+async function buildQRCodes(handle, shop) {
+  const [pngDataUrl, svgString] = await Promise.all([
+    generateQRCode(handle, shop, { format: "png" }),
+    generateQRCode(handle, shop, { format: "svg" }),
+  ]);
+  const svgDataUrl = `data:image/svg+xml;base64,${Buffer.from(svgString).toString("base64")}`;
+  return { pngDataUrl, svgDataUrl };
+}
 
 export async function loader({ request, params }) {
   const { admin, session } = await authenticate.admin(request);
@@ -30,6 +40,8 @@ export async function loader({ request, params }) {
       process: "",
       story: "",
       shop: session.shop,
+      qrPng: null,
+      qrSvg: null,
     };
   }
 
@@ -37,7 +49,18 @@ export async function loader({ request, params }) {
   if (!storyRecord) {
     throw new Response("Story not found", { status: 404 });
   }
-  return { ...storyRecord, shop: session.shop };
+
+  const { pngDataUrl, svgDataUrl } = await buildQRCodes(
+    storyRecord.handle,
+    session.shop,
+  );
+
+  return {
+    ...storyRecord,
+    shop: session.shop,
+    qrPng: pngDataUrl,
+    qrSvg: svgDataUrl,
+  };
 }
 
 export async function action({ request, params }) {
@@ -269,11 +292,46 @@ export default function StoryForm() {
             </s-stack>
           </s-section>
 
-          {publicUrl ? (
+          {initial.handle ? (
             <s-box slot="aside">
+              <s-section heading="QR code">
+                <s-stack gap="base">
+                  <s-box
+                    padding="base"
+                    border="none"
+                    borderRadius="base"
+                    background="subdued"
+                  >
+                    {loaderData.qrPng ? (
+                      <s-image
+                        aspectRatio="1/1"
+                        src={loaderData.qrPng}
+                        alt={`QR code for ${formState.productTitle ?? "this story"}`}
+                      />
+                    ) : null}
+                  </s-box>
+                  <s-stack direction="inline" gap="small">
+                    <s-button
+                      href={loaderData.qrPng ?? undefined}
+                      download={`origin-story-${initial.handle}.png`}
+                      variant="primary"
+                    >
+                      Download PNG
+                    </s-button>
+                    <s-button
+                      href={loaderData.qrSvg ?? undefined}
+                      download={`origin-story-${initial.handle}.svg`}
+                    >
+                      Download SVG
+                    </s-button>
+                  </s-stack>
+                </s-stack>
+              </s-section>
               <s-section heading="Public page">
                 <s-stack gap="small">
-                  <s-text color="subdued">Shoppers see this URL.</s-text>
+                  <s-text color="subdued">
+                    The QR code points to a scan endpoint that redirects to this URL.
+                  </s-text>
                   <s-link href={publicUrl} target="_blank">
                     Open public page
                   </s-link>
