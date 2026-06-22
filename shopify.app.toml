@@ -27,50 +27,38 @@ scopes = "write_products,write_metaobjects,write_metaobject_definitions"
 [auth]
 redirect_urls = [ "https://example.com/api/auth" ]
 
-[product.metafields.app.demo_info]
-type = "single_line_text_field"
-name = "Demo Source Info"
-description = "Tracks products created by the Shopify app template for development"
+[metaobjects.app.product_story]
+name = "Product Story"
+description = "A product's origin story, surfaced to shoppers via a scannable QR code"
 
-  [product.metafields.app.demo_info.access]
+  [metaobjects.app.product_story.access]
   admin = "merchant_read_write"
 
-[metaobjects.app.example]
-name = "Example"
-description = "An example metaobject definition created by this template"
-
-  [metaobjects.app.example.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.example.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.example.fields.description]
-name = "Description"
-type = "multi_line_text_field"
-
-[metaobjects.app.qrcode]
-name = "QR Code"
-description = "QR codes that link to products"
-
-  [metaobjects.app.qrcode.access]
-  admin = "merchant_read_write"
-
-[metaobjects.app.qrcode.fields.title]
-name = "Title"
-type = "single_line_text_field"
-required = true
-
-[metaobjects.app.qrcode.fields.product]
+[metaobjects.app.product_story.fields.product]
 name = "Product"
 type = "product_reference"
+required = true
 
-[metaobjects.app.qrcode.fields.product_variant]
-name = "Product Variant"
-type = "variant_reference"
-
-[metaobjects.app.qrcode.fields.destination]
-name = "Destination"
+[metaobjects.app.product_story.fields.origin]
+name = "Origin"
 type = "single_line_text_field"
+required = true
+
+[metaobjects.app.product_story.fields.maker]
+name = "Maker"
+type = "single_line_text_field"
+required = true
+
+[metaobjects.app.product_story.fields.process]
+name = "Process"
+type = "multi_line_text_field"
+required = true
+
+[metaobjects.app.product_story.fields.story]
+name = "Story"
+type = "multi_line_text_field"
+required = true
+
+[metaobjects.app.product_story.fields.hero_image]
+name = "Hero Image"
+type = "file_reference"
