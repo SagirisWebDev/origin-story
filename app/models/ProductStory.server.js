@@ -79,6 +79,11 @@ export async function getStory(handle, graphql) {
   return normalizeMetaobject(data?.metaobjectByHandle);
 }
 
+export async function getStoryByProductId(productId, graphql) {
+  const stories = await listStories(graphql);
+  return stories.find((s) => s.productId === productId) ?? null;
+}
+
 export async function listStories(graphql) {
   const response = await graphql(
     `

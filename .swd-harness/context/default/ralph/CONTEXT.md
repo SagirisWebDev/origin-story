@@ -1,3 +1,6 @@
+# Dev Environment
+- Before you ask questions about the the feature to the user, you will need access to a local development environment in which you can test the feature or app you're creating. Ask the user if there is a local development environment running and query them for the url and save it to memory. If there isn't a local dev env running, halt progress until the user provides a url to the dev env and ping it yourself to ensure it's running.
+
 # IMPLEMENTATION
 
 **You (the main agent) write all implementation code.**

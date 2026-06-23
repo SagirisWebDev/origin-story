@@ -4,6 +4,7 @@ import {
   deleteStory,
   generateHandle,
   getStory,
+  getStoryByProductId,
   listStories,
   saveStory,
   validateStory,
@@ -333,6 +334,99 @@ describe("saveStory", () => {
     await expect(
       saveStory("ethiopia-yirgacheffe-abc123", VALID_STORY, graphql),
     ).rejects.toThrow(/Product is invalid/);
+  });
+});
+
+describe("getStoryByProductId", () => {
+  // Helper: shape a single metaobject node the way the GraphQL response would.
+  function metaobject({ id, handle, productId, origin = "" }) {
+    return {
+      id,
+      handle,
+      updatedAt: "2026-06-21T12:00:00Z",
+      product: {
+        jsonValue: productId,
+        reference: { handle: "p", title: "Product Title" },
+      },
+      origin: { jsonValue: origin },
+      maker: { jsonValue: "" },
+      process: { jsonValue: "" },
+      story: { jsonValue: "" },
+      heroImage: null,
+    };
+  }
+
+  it("returns null when no stories exist at all", async () => {
+    const graphql = mockGraphql({ metaobjects: { nodes: [] } });
+
+    const result = await getStoryByProductId(
+      "gid://shopify/Product/1",
+      graphql,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("returns null when stories exist but none match the productId", async () => {
+    const graphql = mockGraphql({
+      metaobjects: {
+        nodes: [
+          metaobject({
+            id: "gid://shopify/Metaobject/1",
+            handle: "story-one",
+            productId: "gid://shopify/Product/999",
+          }),
+          metaobject({
+            id: "gid://shopify/Metaobject/2",
+            handle: "story-two",
+            productId: "gid://shopify/Product/888",
+          }),
+        ],
+      },
+    });
+
+    const result = await getStoryByProductId(
+      "gid://shopify/Product/1",
+      graphql,
+    );
+
+    expect(result).toBeNull();
+  });
+
+  it("returns the normalized story whose productId matches", async () => {
+    const graphql = mockGraphql({
+      metaobjects: {
+        nodes: [
+          metaobject({
+            id: "gid://shopify/Metaobject/1",
+            handle: "other-story",
+            productId: "gid://shopify/Product/999",
+            origin: "Kenya",
+          }),
+          metaobject({
+            id: "gid://shopify/Metaobject/42",
+            handle: "ethiopia-yirgacheffe-abc123",
+            productId: "gid://shopify/Product/1",
+            origin: "Ethiopia",
+          }),
+        ],
+      },
+    });
+
+    const result = await getStoryByProductId(
+      "gid://shopify/Product/1",
+      graphql,
+    );
+
+    expect(result).not.toBeNull();
+    // Pin behavior: the returned object is the normalized story for the matching
+    // product — not a raw metaobject node.
+    expect(result).toMatchObject({
+      id: "gid://shopify/Metaobject/42",
+      handle: "ethiopia-yirgacheffe-abc123",
+      productId: "gid://shopify/Product/1",
+      origin: "Ethiopia",
+    });
   });
 });
 
