@@ -16,12 +16,14 @@ function Extension() {
   const [productTitle, setProductTitle] = useState("");
   const [qrPng, setQrPng] = useState(null);
   const [storyHandle, setStoryHandle] = useState(null);
+  const [paid, setPaid] = useState(false);
   const [form, setForm] = useState({
     origin: "",
     maker: "",
     process: "",
     story: "",
     heroImageId: null,
+    customFields: [],
   });
 
   useEffect(() => {
@@ -38,6 +40,7 @@ function Extension() {
         setProductTitle(data.productTitle ?? "");
         setQrPng(data.qrPng ?? null);
         setStoryHandle(data.story?.handle ?? null);
+        setPaid(Boolean(data.flags?.paid));
         if (data.story) {
           setForm({
             origin: data.story.origin ?? "",
@@ -45,6 +48,7 @@ function Extension() {
             process: data.story.process ?? "",
             story: data.story.story ?? "",
             heroImageId: data.story.heroImageId ?? null,
+            customFields: data.story.customFields ?? [],
           });
         }
       } catch (e) {
@@ -63,13 +67,16 @@ function Extension() {
     setSaving(true);
     setError(null);
     try {
+      // On the free tier, don't send customFields — the model treats absent as
+      // "leave existing alone" rather than clearing.
+      const { customFields: _maybe, ...rest } = form;
+      const body = paid
+        ? { ...rest, customFields: form.customFields ?? [], productTitle }
+        : { ...rest, productTitle };
       const res = await fetch(`/api/product-story/${encodedProductId}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          productTitle,
-        }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
@@ -145,6 +152,69 @@ function Extension() {
             setForm({ ...form, heroImageId: e.target.value || null })
           }
         />
+
+        {paid ? (
+          <s-stack direction="block" gap="small">
+            <s-text type="strong">Custom fields</s-text>
+            {(form.customFields ?? []).map((field, i) => (
+              <s-stack key={i} direction="inline" gap="small" alignItems="end">
+                <s-text-field
+                  label="Label"
+                  value={field.label}
+                  onInput={(e) => {
+                    const next = [...form.customFields];
+                    next[i] = { ...next[i], label: e.target.value };
+                    setForm({ ...form, customFields: next });
+                  }}
+                />
+                <s-text-field
+                  label="Value"
+                  value={field.value}
+                  onInput={(e) => {
+                    const next = [...form.customFields];
+                    next[i] = { ...next[i], value: e.target.value };
+                    setForm({ ...form, customFields: next });
+                  }}
+                />
+                <s-button
+                  variant="tertiary"
+                  onClick={() => {
+                    const next = [...form.customFields];
+                    next.splice(i, 1);
+                    setForm({ ...form, customFields: next });
+                  }}
+                >
+                  Remove
+                </s-button>
+              </s-stack>
+            ))}
+            <s-button
+              onClick={() =>
+                setForm({
+                  ...form,
+                  customFields: [
+                    ...(form.customFields ?? []),
+                    { label: "", value: "" },
+                  ],
+                })
+              }
+            >
+              Add field
+            </s-button>
+          </s-stack>
+        ) : (
+          <s-stack direction="block" gap="small">
+            <s-text type="strong">Custom fields</s-text>
+            <s-text color="subdued">
+              Upgrade to add extras like "Altitude" or "Key Ingredients".
+            </s-text>
+            <s-link
+              href={`shopify://admin/apps/dev-app1-7/app/billing`}
+            >
+              Upgrade
+            </s-link>
+          </s-stack>
+        )}
 
         <s-stack direction="inline" gap="base" alignItems="center">
           <s-button

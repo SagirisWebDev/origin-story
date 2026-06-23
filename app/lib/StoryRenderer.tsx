@@ -1,3 +1,8 @@
+export type CustomField = {
+  label: string;
+  value: string;
+};
+
 export type StoryForRender = {
   id?: string;
   handle?: string;
@@ -8,6 +13,7 @@ export type StoryForRender = {
   story: string;
   heroImageUrl: string | null;
   heroImageAlt: string | null;
+  customFields?: CustomField[];
 };
 
 export type BrandForRender = {
@@ -98,6 +104,17 @@ export function StoryRenderer({ story, brand }: Props) {
         <h2 style={labelStyle(brand.accentColor)}>Story</h2>
         <p style={{ margin: 0, whiteSpace: "pre-line" }}>{story.story}</p>
       </section>
+
+      {story.customFields && story.customFields.length > 0 ? (
+        <section style={{ marginTop: "1.5rem" }}>
+          {story.customFields.map((field, i) => (
+            <div key={i} style={{ marginTop: i === 0 ? 0 : "1rem" }}>
+              <h2 style={labelStyle(brand.accentColor)}>{field.label}</h2>
+              <p style={{ margin: 0 }}>{field.value}</p>
+            </div>
+          ))}
+        </section>
+      ) : null}
     </main>
   );
 }

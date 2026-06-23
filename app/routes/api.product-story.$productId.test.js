@@ -53,6 +53,12 @@ vi.mock("../models/ProductStory.server.js", () => ({
   validateStory: vi.fn(),
 }));
 
+// Slice 8 (issue #11): the loader now also returns the feature-flag bundle
+// so the admin block extension knows whether to render the custom-fields UI.
+vi.mock("../lib/featureFlags.server.js", () => ({
+  getFeatureFlags: vi.fn(),
+}));
+
 // Pull the mocked references for per-test wiring.
 import { authenticate } from "../shopify.server";
 import {
@@ -61,6 +67,7 @@ import {
   generateHandle,
   validateStory,
 } from "../models/ProductStory.server.js";
+import { getFeatureFlags } from "../lib/featureFlags.server.js";
 
 // Import the route module under test AFTER mocks are declared. Vitest hoists
 // `vi.mock`, so this resolves to the mocked dependencies.
@@ -127,6 +134,9 @@ const VALID_BODY = {
 describe("api.product-story.$productId loader", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Slice 8: default feature-flag bundle. Tests can override to assert
+    // shop-passthrough or paid:false behavior.
+    getFeatureFlags.mockReturnValue({ paid: true });
   });
 
   it("authenticates the request as an admin", async () => {
@@ -414,5 +424,122 @@ describe("api.product-story.$productId action", () => {
 
     const [, dataArg] = saveStory.mock.calls[0];
     expect(dataArg.heroImageId).toBe("gid://shopify/MediaImage/42");
+  });
+
+  // ---------------------------------------------------------------------------
+  // Slice 8 (issue #11): custom_fields forwarding
+  // ---------------------------------------------------------------------------
+  //
+  // The action route must forward customFields through to saveStory verbatim
+  // when present in the body. When absent, it must NOT include a customFields
+  // key at all — so saveStory's "undefined means leave alone" branch fires.
+
+  it("forwards customFields to saveStory when present in the body", async () => {
+    const admin = makeAdmin();
+    authenticate.admin.mockResolvedValue({ admin, cors: (r) => r });
+    getStoryByProductId.mockResolvedValue(null);
+    generateHandle.mockReturnValue("ethiopia-yirgacheffe-newgen");
+    saveStory.mockResolvedValue({
+      id: "gid://shopify/Metaobject/99",
+      handle: "ethiopia-yirgacheffe-newgen",
+    });
+
+    const customFields = [{ label: "Altitude", value: "1800 masl" }];
+
+    await action({
+      request: buildRequest("POST", {
+        ...VALID_BODY,
+        customFields,
+      }),
+      params: { productId: ENCODED_PRODUCT_GID },
+      context: {},
+    });
+
+    const [, dataArg] = saveStory.mock.calls[0];
+    expect(dataArg.customFields).toEqual(customFields);
+  });
+
+  it("omits customFields from the saveStory data argument when the body omits it", async () => {
+    const admin = makeAdmin();
+    authenticate.admin.mockResolvedValue({ admin, cors: (r) => r });
+    getStoryByProductId.mockResolvedValue(null);
+    generateHandle.mockReturnValue("ethiopia-yirgacheffe-newgen");
+    saveStory.mockResolvedValue({
+      id: "gid://shopify/Metaobject/99",
+      handle: "ethiopia-yirgacheffe-newgen",
+    });
+
+    await action({
+      request: buildRequest("POST", VALID_BODY), // no customFields key
+      params: { productId: ENCODED_PRODUCT_GID },
+      context: {},
+    });
+
+    const [, dataArg] = saveStory.mock.calls[0];
+    expect("customFields" in dataArg).toBe(false);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Slice 8 (issue #11): loader returns feature flags
+// -----------------------------------------------------------------------------
+//
+// The admin block extension needs to know whether the merchant is on the paid
+// tier so it can render the custom-fields editor (paid) or an upgrade CTA
+// (free). Pin: the loader response includes a `flags` object with at least the
+// `paid` boolean.
+
+describe("api.product-story.$productId loader feature flags", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getFeatureFlags.mockReturnValue({ paid: true });
+  });
+
+  it("returns flags from getFeatureFlags alongside the story payload (story exists)", async () => {
+    const admin = makeAdmin();
+    authenticate.admin.mockResolvedValue({
+      admin,
+      session: { shop: "test-shop.myshopify.com" },
+      cors: (r) => r,
+    });
+    getStoryByProductId.mockResolvedValue(NORMALIZED_STORY);
+    getFeatureFlags.mockReturnValue({ paid: true });
+
+    const result = await loader({
+      request: buildRequest("GET"),
+      params: { productId: ENCODED_PRODUCT_GID },
+      context: {},
+    });
+
+    const payload =
+      result instanceof Response ? await result.json() : result;
+
+    expect(payload.flags).toEqual({ paid: true });
+  });
+
+  it("returns flags when no story exists", async () => {
+    const admin = makeAdmin(async () => ({
+      json: async () => ({
+        data: { product: { title: "Brand New Product" } },
+      }),
+    }));
+    authenticate.admin.mockResolvedValue({
+      admin,
+      session: { shop: "test-shop.myshopify.com" },
+      cors: (r) => r,
+    });
+    getStoryByProductId.mockResolvedValue(null);
+    getFeatureFlags.mockReturnValue({ paid: false });
+
+    const result = await loader({
+      request: buildRequest("GET"),
+      params: { productId: ENCODED_PRODUCT_GID },
+      context: {},
+    });
+
+    const payload =
+      result instanceof Response ? await result.json() : result;
+
+    expect(payload.flags).toEqual({ paid: false });
   });
 });

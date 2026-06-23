@@ -16,6 +16,7 @@ import {
   validateStory,
 } from "../models/ProductStory.server.js";
 import { generate as generateQRCode } from "../lib/QRCodeGenerator.server.js";
+import { getFeatureFlags } from "../lib/featureFlags.server.js";
 
 async function buildQRCodes(handle, shop) {
   const [pngDataUrl, svgString] = await Promise.all([
@@ -28,6 +29,7 @@ async function buildQRCodes(handle, shop) {
 
 export async function loader({ request, params }) {
   const { admin, session } = await authenticate.admin(request);
+  const flags = getFeatureFlags(session.shop);
 
   if (params.id === "new") {
     return {
@@ -39,9 +41,11 @@ export async function loader({ request, params }) {
       maker: "",
       process: "",
       story: "",
+      customFields: [],
       shop: session.shop,
       qrPng: null,
       qrSvg: null,
+      flags,
     };
   }
 
@@ -60,6 +64,7 @@ export async function loader({ request, params }) {
     shop: session.shop,
     qrPng: pngDataUrl,
     qrSvg: svgDataUrl,
+    flags,
   };
 }
 
@@ -80,6 +85,19 @@ export async function action({ request, params }) {
     process: data.process || "",
     story: data.story || "",
   };
+
+  if (typeof data.customFields === "string") {
+    try {
+      const parsed = JSON.parse(data.customFields);
+      if (Array.isArray(parsed)) {
+        payload.customFields = parsed
+          .filter((f) => f && (f.label || f.value))
+          .map((f) => ({ label: String(f.label ?? ""), value: String(f.value ?? "") }));
+      }
+    } catch {
+      // Malformed customFields JSON — ignore and leave existing data alone.
+    }
+  }
 
   const errors = validateStory(payload);
   if (errors) {
@@ -140,17 +158,37 @@ export default function StoryForm() {
 
   function handleSave(e) {
     e.preventDefault();
-    submit(
-      {
-        productId: formState.productId || "",
-        productTitle: formState.productTitle || "",
-        origin: formState.origin || "",
-        maker: formState.maker || "",
-        process: formState.process || "",
-        story: formState.story || "",
-      },
-      { method: "post" },
-    );
+    const payload = {
+      productId: formState.productId || "",
+      productTitle: formState.productTitle || "",
+      origin: formState.origin || "",
+      maker: formState.maker || "",
+      process: formState.process || "",
+      story: formState.story || "",
+    };
+    if (loaderData.flags?.paid) {
+      payload.customFields = JSON.stringify(formState.customFields ?? []);
+    }
+    submit(payload, { method: "post" });
+  }
+
+  function updateCustomField(index, patch) {
+    const next = [...(formState.customFields ?? [])];
+    next[index] = { ...next[index], ...patch };
+    setFormState({ ...formState, customFields: next });
+  }
+
+  function addCustomField() {
+    setFormState({
+      ...formState,
+      customFields: [...(formState.customFields ?? []), { label: "", value: "" }],
+    });
+  }
+
+  function removeCustomField(index) {
+    const next = [...(formState.customFields ?? [])];
+    next.splice(index, 1);
+    setFormState({ ...formState, customFields: next });
   }
 
   function handleDelete(e) {
@@ -290,6 +328,66 @@ export default function StoryForm() {
                 }
               ></s-text-area>
             </s-stack>
+          </s-section>
+
+          <s-section heading="Custom fields">
+            {loaderData.flags?.paid ? (
+              <s-stack gap="base">
+                <s-text color="subdued">
+                  Optional extras shown below the core story (e.g. "Altitude: 1800 masl").
+                </s-text>
+                {(formState.customFields ?? []).map((field, index) => (
+                  <s-stack
+                    key={index}
+                    direction="inline"
+                    gap="small"
+                    alignItems="end"
+                  >
+                    <s-text-field
+                      label="Label"
+                      value={field.label}
+                      onInput={(e) =>
+                        updateCustomField(index, { label: e.target.value })
+                      }
+                    ></s-text-field>
+                    <s-text-field
+                      label="Value"
+                      value={field.value}
+                      onInput={(e) =>
+                        updateCustomField(index, { value: e.target.value })
+                      }
+                    ></s-text-field>
+                    <s-button
+                      variant="tertiary"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        removeCustomField(index);
+                      }}
+                    >
+                      Remove
+                    </s-button>
+                  </s-stack>
+                ))}
+                <s-button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    addCustomField();
+                  }}
+                >
+                  Add field
+                </s-button>
+              </s-stack>
+            ) : (
+              <s-stack gap="base">
+                <s-text>
+                  Custom fields let you add brand-specific extras like "Altitude" or
+                  "Key Ingredients" alongside the core story.
+                </s-text>
+                <s-button href="/app/billing" variant="primary">
+                  Upgrade to unlock
+                </s-button>
+              </s-stack>
+            )}
           </s-section>
 
           {initial.handle ? (

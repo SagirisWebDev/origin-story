@@ -32,6 +32,7 @@ const METAOBJECT_FIELDS_FRAGMENT = `
       }
     }
   }
+  customFields: field(key: "custom_fields") { jsonValue }
 `;
 
 function normalizeMetaobject(metaobject) {
@@ -56,6 +57,7 @@ function normalizeMetaobject(metaobject) {
     heroImageId: metaobject.heroImage?.jsonValue ?? null,
     heroImageUrl: heroImage?.url ?? null,
     heroImageAlt: heroImage?.altText ?? null,
+    customFields: metaobject.customFields?.jsonValue ?? [],
   };
 }
 
@@ -116,6 +118,13 @@ export async function saveStory(handle, data, graphql) {
 
   if (data.heroImageId) {
     fields.push({ key: "hero_image", value: data.heroImageId });
+  }
+
+  if (data.customFields !== undefined) {
+    fields.push({
+      key: "custom_fields",
+      value: JSON.stringify(data.customFields),
+    });
   }
 
   const response = await graphql(

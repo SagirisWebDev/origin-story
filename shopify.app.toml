@@ -62,3 +62,8 @@ required = true
 [metaobjects.app.product_story.fields.hero_image]
 name = "Hero Image"
 type = "file_reference"
+
+[metaobjects.app.product_story.fields.custom_fields]
+name = "Custom Fields"
+description = "Paid-tier extras: a JSON-encoded array of { label, value } pairs."
+type = "json"

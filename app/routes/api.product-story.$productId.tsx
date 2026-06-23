@@ -8,6 +8,7 @@ import {
   validateStory,
 } from "../models/ProductStory.server.js";
 import { generate as generateQRCode } from "../lib/QRCodeGenerator.server.js";
+import { getFeatureFlags } from "../lib/featureFlags.server.js";
 
 const PRODUCT_TITLE_QUERY = `
   query ProductTitle($id: ID!) {
@@ -27,6 +28,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const { admin, session, cors } = await authenticate.admin(request);
   const productId = decodeProductId(params.productId);
   const shop = session?.shop;
+  const flags = getFeatureFlags(shop);
 
   const story = await getStoryByProductId(productId, admin.graphql);
 
@@ -40,6 +42,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         productTitle: story.productTitle,
         productId,
         qrPng,
+        flags,
       }),
     );
   }
@@ -51,7 +54,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const productTitle = body?.data?.product?.title ?? null;
 
   return cors(
-    Response.json({ story: null, productTitle, productId, qrPng: null }),
+    Response.json({
+      story: null,
+      productTitle,
+      productId,
+      qrPng: null,
+      flags,
+    }),
   );
 };
 
@@ -66,6 +75,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     story?: string;
     productTitle?: string;
     heroImageId?: string | null;
+    customFields?: Array<{ label: string; value: string }>;
   };
 
   const data = {
@@ -75,6 +85,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     process: body.process ?? "",
     story: body.story ?? "",
     ...(body.heroImageId ? { heroImageId: body.heroImageId } : {}),
+    ...(body.customFields !== undefined
+      ? { customFields: body.customFields }
+      : {}),
   };
 
   const errors = validateStory(data);

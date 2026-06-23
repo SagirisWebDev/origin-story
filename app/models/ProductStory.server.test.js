@@ -430,6 +430,192 @@ describe("getStoryByProductId", () => {
   });
 });
 
+// -----------------------------------------------------------------------------
+// Slice 8 (issue #11): custom_fields round-trip
+// -----------------------------------------------------------------------------
+//
+// `custom_fields` is a JSON metaobject field shaped as an array of
+// `{ label, value }` pairs. Shopify's GraphQL response surfaces it under
+// `jsonValue` already parsed (it returns the JSON value, not a string).
+//
+// Behavior pinned here (not GraphQL string contents):
+//   - getStory normalizes `custom_fields` → `customFields` on the result.
+//     Missing / null collapses to `[]` so the renderer never sees `undefined`.
+//   - listStories propagates `customFields` per row.
+//   - saveStory:
+//       * includes `custom_fields` in the upsert when `customFields` is an
+//         array (even an empty one — so clearing works), JSON-stringified.
+//       * omits `custom_fields` when `data.customFields` is `undefined` —
+//         this means "leave existing data alone" rather than "blank it out".
+
+describe("getStory custom_fields", () => {
+  function metaobjectWithCustomFields(customFieldsValue) {
+    return {
+      id: "gid://shopify/Metaobject/123",
+      handle: "ethiopia-yirgacheffe-abc123",
+      updatedAt: "2026-06-21T12:00:00Z",
+      product: {
+        jsonValue: "gid://shopify/Product/1",
+        reference: { handle: "p", title: "Product Title" },
+      },
+      origin: { jsonValue: "Ethiopia" },
+      maker: { jsonValue: "Maker" },
+      process: { jsonValue: "Process" },
+      story: { jsonValue: "Story" },
+      heroImage: null,
+      customFields: customFieldsValue,
+    };
+  }
+
+  it("returns customFields populated from the metaobject jsonValue", async () => {
+    const customFields = [{ label: "Altitude", value: "1800 masl" }];
+    const graphql = mockGraphql({
+      metaobjectByHandle: metaobjectWithCustomFields({ jsonValue: customFields }),
+    });
+
+    const result = await getStory("ethiopia-yirgacheffe-abc123", graphql);
+
+    expect(result.customFields).toEqual(customFields);
+  });
+
+  it("returns customFields = [] when the metaobject customFields field is null", async () => {
+    const graphql = mockGraphql({
+      metaobjectByHandle: metaobjectWithCustomFields(null),
+    });
+
+    const result = await getStory("ethiopia-yirgacheffe-abc123", graphql);
+
+    expect(result.customFields).toEqual([]);
+  });
+
+  it("returns customFields = [] when the metaobject customFields jsonValue is an empty array", async () => {
+    const graphql = mockGraphql({
+      metaobjectByHandle: metaobjectWithCustomFields({ jsonValue: [] }),
+    });
+
+    const result = await getStory("ethiopia-yirgacheffe-abc123", graphql);
+
+    expect(result.customFields).toEqual([]);
+  });
+});
+
+describe("listStories custom_fields", () => {
+  it("returns customFields per row when each node has its own customFields", async () => {
+    const customFieldsA = [{ label: "Altitude", value: "1800 masl" }];
+    const customFieldsB = [
+      { label: "Key Ingredients", value: "aloe, hyaluronic acid" },
+    ];
+
+    const graphql = mockGraphql({
+      metaobjects: {
+        nodes: [
+          {
+            id: "gid://shopify/Metaobject/1",
+            handle: "first-story-aaa",
+            updatedAt: "2026-06-21T12:00:00Z",
+            product: {
+              jsonValue: "gid://shopify/Product/1",
+              reference: { handle: "first", title: "First" },
+            },
+            origin: { jsonValue: "Ethiopia" },
+            maker: { jsonValue: "Maker A" },
+            process: { jsonValue: "Process A" },
+            story: { jsonValue: "Story A" },
+            heroImage: null,
+            customFields: { jsonValue: customFieldsA },
+          },
+          {
+            id: "gid://shopify/Metaobject/2",
+            handle: "second-story-bbb",
+            updatedAt: "2026-06-20T12:00:00Z",
+            product: {
+              jsonValue: "gid://shopify/Product/2",
+              reference: { handle: "second", title: "Second" },
+            },
+            origin: { jsonValue: "Kenya" },
+            maker: { jsonValue: "Maker B" },
+            process: { jsonValue: "Process B" },
+            story: { jsonValue: "Story B" },
+            heroImage: null,
+            customFields: { jsonValue: customFieldsB },
+          },
+        ],
+      },
+    });
+
+    const result = await listStories(graphql);
+
+    expect(result).toHaveLength(2);
+    expect(result[0].customFields).toEqual(customFieldsA);
+    expect(result[1].customFields).toEqual(customFieldsB);
+  });
+});
+
+describe("saveStory custom_fields", () => {
+  function successUpsertResponse() {
+    return mockGraphql({
+      metaobjectUpsert: {
+        metaobject: {
+          id: "gid://shopify/Metaobject/123",
+          handle: "ethiopia-yirgacheffe-abc123",
+        },
+        userErrors: [],
+      },
+    });
+  }
+
+  it("includes custom_fields as JSON-stringified value when customFields is a non-empty array", async () => {
+    const graphql = successUpsertResponse();
+    const customFields = [{ label: "Altitude", value: "1800 masl" }];
+
+    await saveStory(
+      "ethiopia-yirgacheffe-abc123",
+      { ...VALID_STORY, customFields },
+      graphql,
+    );
+
+    const [, options] = graphql.mock.calls[0];
+    const fields = options.variables.metaobject.fields;
+    const customField = fields.find((f) => f.key === "custom_fields");
+
+    expect(customField).toBeDefined();
+    expect(customField.value).toBe(JSON.stringify(customFields));
+  });
+
+  it("includes custom_fields with the string '[]' when customFields is an empty array (so clearing works)", async () => {
+    const graphql = successUpsertResponse();
+
+    await saveStory(
+      "ethiopia-yirgacheffe-abc123",
+      { ...VALID_STORY, customFields: [] },
+      graphql,
+    );
+
+    const [, options] = graphql.mock.calls[0];
+    const fields = options.variables.metaobject.fields;
+    const customField = fields.find((f) => f.key === "custom_fields");
+
+    expect(customField).toBeDefined();
+    expect(customField.value).toBe("[]");
+  });
+
+  it("omits custom_fields from the upsert when data.customFields is undefined (don't overwrite existing data)", async () => {
+    const graphql = successUpsertResponse();
+
+    await saveStory(
+      "ethiopia-yirgacheffe-abc123",
+      { ...VALID_STORY }, // no customFields key
+      graphql,
+    );
+
+    const [, options] = graphql.mock.calls[0];
+    const fields = options.variables.metaobject.fields;
+    const customField = fields.find((f) => f.key === "custom_fields");
+
+    expect(customField).toBeUndefined();
+  });
+});
+
 describe("deleteStory", () => {
   it("calls graphql with the metaobjectDelete mutation and the given id", async () => {
     const graphql = mockGraphql({
