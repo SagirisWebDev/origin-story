@@ -40,3 +40,14 @@ model BrandSettings {
   fontFamily  String?
   updatedAt   DateTime @updatedAt
 }
+
+model ScanEvent {
+  id             Int      @id @default(autoincrement())
+  storyHandle    String
+  shop           String
+  timestamp      DateTime @default(now())
+  userAgentClass String
+
+  @@index([storyHandle, timestamp])
+  @@index([shop, timestamp])
+}
