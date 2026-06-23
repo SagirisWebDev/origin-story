@@ -7,6 +7,8 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { listStories } from "../models/ProductStory.server.js";
+import { countScansByHandles } from "../models/ScanTracker.server.js";
+import { getFeatureFlags } from "../lib/featureFlags.server.js";
 
 type Story = {
   id: string;
@@ -19,13 +21,21 @@ type Story = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const stories = (await listStories(admin.graphql)) as Story[];
-  return { stories };
+  const flags = getFeatureFlags(session.shop);
+
+  let scans: Record<string, number> = {};
+  if (flags.paid) {
+    const counts = await countScansByHandles(stories.map((s) => s.handle));
+    scans = Object.fromEntries(counts);
+  }
+
+  return { stories, flags, scans };
 };
 
 export default function Index() {
-  const { stories } = useLoaderData<typeof loader>();
+  const { stories, flags, scans } = useLoaderData<typeof loader>();
   const isEmpty = stories.length === 0;
 
   return (
@@ -100,7 +110,14 @@ export default function Index() {
                         ) : null}
                       </s-stack>
                     </s-stack>
-                    <s-text color="subdued">Edit</s-text>
+                    <s-stack direction="inline" gap="base" alignItems="center">
+                      {flags.paid ? (
+                        <s-text color="subdued">
+                          {scans[story.handle] ?? 0} scans
+                        </s-text>
+                      ) : null}
+                      <s-text color="subdued">Edit</s-text>
+                    </s-stack>
                   </s-stack>
                 </s-box>
               </s-clickable>

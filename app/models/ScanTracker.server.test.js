@@ -22,11 +22,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 // -----------------------------------------------------------------------------
 
 vi.mock("../db.server", () => ({
-  default: { scanEvent: { create: vi.fn() } },
+  default: {
+    scanEvent: {
+      create: vi.fn(),
+      groupBy: vi.fn(),
+      findMany: vi.fn(),
+    },
+  },
 }));
 
 import prisma from "../db.server";
-import { classifyUserAgent, recordScan } from "./ScanTracker.server.js";
+import {
+  classifyUserAgent,
+  recordScan,
+  countScansByHandles,
+  scansPerDay,
+} from "./ScanTracker.server.js";
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -67,6 +78,8 @@ function buildRequest({ ua, shop = SHOP, extraHeaders = {} } = {}) {
 
 beforeEach(() => {
   prisma.scanEvent.create.mockReset();
+  prisma.scanEvent.groupBy.mockReset();
+  prisma.scanEvent.findMany.mockReset();
 });
 
 // -----------------------------------------------------------------------------
@@ -234,5 +247,204 @@ describe("recordScan", () => {
     const serialized = JSON.stringify(data);
     expect(serialized).not.toContain("203.0.113.42");
     expect(serialized).not.toContain("10.0.0.1");
+  });
+});
+
+// -----------------------------------------------------------------------------
+// countScansByHandles (issue #9 — slice 7 analytics aggregator)
+// -----------------------------------------------------------------------------
+//
+// Contract: given an array of story handles, returns a Map keyed by handle
+// with the scan count for each. Every input handle is present in the result,
+// zero-filled if no scans exist.
+//
+// Implementation uses prisma.scanEvent.groupBy with the `in: handles` filter.
+// Early-exits with an empty Map when the input is empty (must not call prisma).
+
+describe("countScansByHandles", () => {
+  it("returns an empty Map when called with an empty array", async () => {
+    const result = await countScansByHandles([]);
+
+    expect(result).toBeInstanceOf(Map);
+    expect(result.size).toBe(0);
+  });
+
+  it("does NOT call prisma when called with an empty array (early exit)", async () => {
+    await countScansByHandles([]);
+
+    expect(prisma.scanEvent.groupBy).not.toHaveBeenCalled();
+  });
+
+  it("calls prisma.scanEvent.groupBy once with an `in: handles` filter", async () => {
+    prisma.scanEvent.groupBy.mockResolvedValue([]);
+
+    const handles = ["a", "b", "c"];
+    await countScansByHandles(handles);
+
+    expect(prisma.scanEvent.groupBy).toHaveBeenCalledTimes(1);
+    const [args] = prisma.scanEvent.groupBy.mock.calls[0];
+    expect(args.where).toEqual({ storyHandle: { in: handles } });
+  });
+
+  it("returns a Map keyed by every input handle, zero-filled for handles with no scans", async () => {
+    // Prisma reports counts only for handles that have at least one row.
+    // The helper must zero-fill the rest so callers can index the Map by
+    // any input handle and always get a number.
+    prisma.scanEvent.groupBy.mockResolvedValue([
+      { storyHandle: "a", _count: { storyHandle: 5 } },
+      { storyHandle: "c", _count: { storyHandle: 3 } },
+    ]);
+
+    const result = await countScansByHandles(["a", "b", "c"]);
+
+    expect(result).toBeInstanceOf(Map);
+    expect(result.get("a")).toBe(5);
+    expect(result.get("b")).toBe(0);
+    expect(result.get("c")).toBe(3);
+    expect(result.size).toBe(3);
+  });
+
+  it("returns numeric counts (not undefined / not strings) for every handle", async () => {
+    prisma.scanEvent.groupBy.mockResolvedValue([
+      { storyHandle: "a", _count: { storyHandle: 5 } },
+    ]);
+
+    const result = await countScansByHandles(["a", "b"]);
+
+    expect(typeof result.get("a")).toBe("number");
+    expect(typeof result.get("b")).toBe("number");
+  });
+
+  it("preserves zero-fill even when prisma returns an empty array", async () => {
+    prisma.scanEvent.groupBy.mockResolvedValue([]);
+
+    const result = await countScansByHandles(["a", "b"]);
+
+    expect(result.get("a")).toBe(0);
+    expect(result.get("b")).toBe(0);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// scansPerDay (issue #9 — slice 7 analytics time series)
+// -----------------------------------------------------------------------------
+//
+// Contract: returns scan counts per day for the last `days` days for a given
+// shop. Always returns an array of exactly `days` entries, zero-filled.
+// Dates are ISO `YYYY-MM-DD` strings, sorted oldest → newest.
+//
+// Bots are excluded from the count — analytics should reflect real shoppers.
+// Implementation: prisma.scanEvent.findMany filtered by shop, timestamp.gte
+// cutoff, and userAgentClass: { not: 'bot' }, grouped in JS by date.
+
+describe("scansPerDay", () => {
+  const ANALYTICS_SHOP = "test-shop.myshopify.com";
+
+  function eventOn(date, userAgentClass = "mobile") {
+    return { timestamp: new Date(date), userAgentClass };
+  }
+
+  it("calls prisma.scanEvent.findMany filtered by shop and a cutoff timestamp", async () => {
+    prisma.scanEvent.findMany.mockResolvedValue([]);
+
+    const before = Date.now();
+    await scansPerDay(ANALYTICS_SHOP, 7);
+    const after = Date.now();
+
+    expect(prisma.scanEvent.findMany).toHaveBeenCalledTimes(1);
+    const [args] = prisma.scanEvent.findMany.mock.calls[0];
+
+    expect(args.where.shop).toBe(ANALYTICS_SHOP);
+    expect(args.where.timestamp?.gte).toBeInstanceOf(Date);
+
+    // Cutoff should be roughly `days` days ago — sanity check it's in the past.
+    const cutoffMs = args.where.timestamp.gte.getTime();
+    expect(cutoffMs).toBeLessThanOrEqual(after);
+    expect(cutoffMs).toBeGreaterThan(before - 8 * 24 * 60 * 60 * 1000);
+  });
+
+  it("excludes bot scans via a userAgentClass filter on the query", async () => {
+    // The filter must be pushed down to the DB so we don't fetch (and then
+    // discard) huge bot volumes in memory.
+    prisma.scanEvent.findMany.mockResolvedValue([]);
+
+    await scansPerDay(ANALYTICS_SHOP, 7);
+
+    const [args] = prisma.scanEvent.findMany.mock.calls[0];
+    expect(args.where.userAgentClass).toEqual({ not: "bot" });
+  });
+
+  it("returns an array of length `days` (zero-fill, even when no events)", async () => {
+    prisma.scanEvent.findMany.mockResolvedValue([]);
+
+    const result = await scansPerDay(ANALYTICS_SHOP, 7);
+
+    expect(Array.isArray(result)).toBe(true);
+    expect(result).toHaveLength(7);
+    for (const entry of result) {
+      expect(entry.count).toBe(0);
+    }
+  });
+
+  it("returns dates as ISO YYYY-MM-DD strings", async () => {
+    prisma.scanEvent.findMany.mockResolvedValue([]);
+
+    const result = await scansPerDay(ANALYTICS_SHOP, 5);
+
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    for (const entry of result) {
+      expect(entry.date).toMatch(datePattern);
+    }
+  });
+
+  it("returns the result sorted oldest → newest", async () => {
+    prisma.scanEvent.findMany.mockResolvedValue([]);
+
+    const result = await scansPerDay(ANALYTICS_SHOP, 7);
+
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i].date >= result[i - 1].date).toBe(true);
+    }
+  });
+
+  it("aggregates multiple events on the same day into a single bucket", async () => {
+    // Pick a date well inside the 7-day window (today). Use three events on
+    // the same UTC day; expect that day's bucket to be 3.
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+    const todayISO = today.toISOString().slice(0, 10);
+
+    prisma.scanEvent.findMany.mockResolvedValue([
+      eventOn(today),
+      eventOn(today),
+      eventOn(today),
+    ]);
+
+    const result = await scansPerDay(ANALYTICS_SHOP, 7);
+
+    const todayBucket = result.find((entry) => entry.date === todayISO);
+    expect(todayBucket).toBeDefined();
+    expect(todayBucket.count).toBe(3);
+  });
+
+  it("does not count events whose userAgentClass is 'bot' (defensive filter)", async () => {
+    // Even if a bot event somehow comes through (e.g. the DB filter is
+    // bypassed in a future refactor), the aggregator must not count it.
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+    const todayISO = today.toISOString().slice(0, 10);
+
+    prisma.scanEvent.findMany.mockResolvedValue([
+      eventOn(today, "mobile"),
+      eventOn(today, "bot"),
+      eventOn(today, "desktop"),
+      eventOn(today, "bot"),
+    ]);
+
+    const result = await scansPerDay(ANALYTICS_SHOP, 7);
+
+    const todayBucket = result.find((entry) => entry.date === todayISO);
+    expect(todayBucket).toBeDefined();
+    expect(todayBucket.count).toBe(2);
   });
 });
