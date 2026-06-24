@@ -72,7 +72,8 @@
     "@shopify/plugin-cloudflare"
   ],
   "overrides": {
-    "p-map": "^4.0.0"
+    "p-map": "^4.0.0",
+    "@shopify/shopify-api": "^13.0.0"
   },
   "author": "tiegan"
 }

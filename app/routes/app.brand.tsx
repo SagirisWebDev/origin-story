@@ -97,7 +97,7 @@ export default function BrandSettingsPage() {
     );
   }
 
-  const saveBarRef = useRef<HTMLElement | null>(null);
+  const saveBarRef = useRef<UISaveBarElement | null>(null);
 
   function handleReset() {
     setFormState(initialRef.current);
