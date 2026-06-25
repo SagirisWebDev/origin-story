@@ -10,11 +10,16 @@ import {
 import { generate as generateQRCode } from "../lib/QRCodeGenerator.server.js";
 import { getFeatureFlags } from "../lib/featureFlags.server.js";
 
-const PRODUCT_TITLE_QUERY = `
-  query ProductTitle($id: ID!) {
+const PRODUCT_TITLE_AND_MEDIA_QUERY = `
+  query ProductTitleAndMedia($id: ID!) {
     product(id: $id) {
       id
       title
+      media(first: 1) {
+        nodes {
+          ... on MediaImage { id }
+        }
+      }
     }
   }
 `;
@@ -32,6 +37,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const story = await getStoryByProductId(productId, admin.graphql);
 
+  const productResp = await admin.graphql(PRODUCT_TITLE_AND_MEDIA_QUERY, {
+    variables: { id: productId },
+  });
+  const productBody = await productResp.json();
+  const productTitle =
+    story?.productTitle ?? productBody?.data?.product?.title ?? null;
+  const firstMediaGid =
+    productBody?.data?.product?.media?.nodes?.[0]?.id ?? null;
+
   if (story) {
     const qrPng = shop
       ? await generateQRCode(story.handle, shop, { format: "png" })
@@ -39,19 +53,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     return cors(
       Response.json({
         story,
-        productTitle: story.productTitle,
+        productTitle,
         productId,
         qrPng,
         flags,
+        firstMediaGid,
       }),
     );
   }
-
-  const response = await admin.graphql(PRODUCT_TITLE_QUERY, {
-    variables: { id: productId },
-  });
-  const body = await response.json();
-  const productTitle = body?.data?.product?.title ?? null;
 
   return cors(
     Response.json({
@@ -60,6 +69,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       productId,
       qrPng: null,
       flags,
+      firstMediaGid,
     }),
   );
 };

@@ -209,6 +209,32 @@ describe("api.product-story.$productId loader", () => {
     });
   });
 
+  it("includes firstMediaGid from the Product so the block can offer a one-click pick", async () => {
+    const admin = makeAdmin(async () => ({
+      json: async () => ({
+        data: {
+          product: {
+            title: "Brand New Product",
+            media: { nodes: [{ id: "gid://shopify/MediaImage/777" }] },
+          },
+        },
+      }),
+    }));
+    authenticate.admin.mockResolvedValue({ admin, cors: (r) => r });
+    getStoryByProductId.mockResolvedValue(null);
+
+    const result = await loader({
+      request: buildRequest("GET"),
+      params: { productId: ENCODED_PRODUCT_GID },
+      context: {},
+    });
+
+    const payload =
+      result instanceof Response ? await result.json() : result;
+
+    expect(payload.firstMediaGid).toBe("gid://shopify/MediaImage/777");
+  });
+
   it("fetches the productTitle from the Product when no story exists", async () => {
     const admin = makeAdmin(async () => ({
       json: async () => ({
