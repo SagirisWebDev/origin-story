@@ -245,4 +245,96 @@ describe("StoryRenderer", () => {
       );
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Slice 11 (issue #14): back-link to brand storefront
+  // ---------------------------------------------------------------------------
+  //
+  // After the Story / custom-fields sections, the renderer must include a
+  // single anchor pointing back to the storefront. When the story has a
+  // productHandle the link targets the PDP; otherwise it falls back to the
+  // storefront root. The link opens in the same tab and uses the brand accent
+  // colour, matching the rest of the page styling.
+
+  describe("back-link to storefront", () => {
+    it("renders an anchor to the product PDP when productHandle is set", () => {
+      const html = render(
+        { ...sampleStory, productHandle: "ethiopia-yirgacheffe" },
+        sampleBrand,
+      );
+
+      expect(html).toMatch(
+        /<a[^>]+href=["']https:\/\/test-shop\.myshopify\.com\/products\/ethiopia-yirgacheffe["']/,
+      );
+    });
+
+    it("falls back to the storefront root when productHandle is null", () => {
+      const html = render(
+        { ...sampleStory, productHandle: null },
+        sampleBrand,
+      );
+
+      // The PDP path must NOT appear, but the storefront root href must.
+      expect(html).not.toContain("/products/");
+      expect(html).toMatch(
+        /<a[^>]+href=["']https:\/\/test-shop\.myshopify\.com["']/,
+      );
+    });
+
+    it("falls back to the storefront root when productHandle is omitted entirely", () => {
+      // sampleStory has no productHandle field at all — exercise the orphan /
+      // migrated-story case explicitly.
+      const html = render(sampleStory, sampleBrand);
+
+      expect(html).not.toContain("/products/");
+      expect(html).toMatch(
+        /<a[^>]+href=["']https:\/\/test-shop\.myshopify\.com["']/,
+      );
+    });
+
+    it("opens the link in the same tab (no target=\"_blank\")", () => {
+      const html = render(
+        { ...sampleStory, productHandle: "ethiopia-yirgacheffe" },
+        sampleBrand,
+      );
+
+      // Find the anchor tag and confirm it has no target attribute pointing
+      // at _blank. We match the full anchor open tag and assert the absence
+      // of target="_blank" within it.
+      const anchorMatch = html.match(/<a\b[^>]*>/);
+      expect(anchorMatch).not.toBeNull();
+      expect(anchorMatch![0]).not.toMatch(/target=["']_blank["']/);
+    });
+
+    it("styles the back-link with the brand accent color", () => {
+      const accent = sampleBrand.accentColor.toLowerCase();
+      const withLinkHtml = render(
+        { ...sampleStory, productHandle: "ethiopia-yirgacheffe" },
+        sampleBrand,
+      );
+      // Compute a baseline with the same story but force the back-link to
+      // fall back to the storefront root — both render an anchor, so any
+      // accent-color count delta comes from elsewhere. Instead, prove the
+      // accent color appears INSIDE the anchor open tag's style attribute.
+      const anchorMatch = withLinkHtml.match(/<a\b[^>]*>/);
+      expect(anchorMatch).not.toBeNull();
+      expect(anchorMatch![0].toLowerCase()).toContain(accent);
+    });
+
+    it("renders the back-link after the Story section in source order", () => {
+      const html = render(
+        { ...sampleStory, productHandle: "ethiopia-yirgacheffe" },
+        sampleBrand,
+      );
+
+      const storyContentIndex = html.indexOf(sampleStory.story);
+      const anchorHrefIndex = html.indexOf(
+        "https://test-shop.myshopify.com/products/ethiopia-yirgacheffe",
+      );
+
+      expect(storyContentIndex).toBeGreaterThan(-1);
+      expect(anchorHrefIndex).toBeGreaterThan(-1);
+      expect(storyContentIndex).toBeLessThan(anchorHrefIndex);
+    });
+  });
 });

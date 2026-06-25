@@ -7,6 +7,7 @@ export type StoryForRender = {
   id?: string;
   handle?: string;
   productTitle: string | null;
+  productHandle?: string | null;
   origin: string;
   maker: string;
   process: string;
@@ -115,6 +116,23 @@ export function StoryRenderer({ story, brand }: Props) {
           ))}
         </section>
       ) : null}
+
+      <p style={{ marginTop: "2.5rem", marginBottom: 0 }}>
+        <a
+          href={
+            story.productHandle
+              ? `https://${brand.shop}/products/${story.productHandle}`
+              : `https://${brand.shop}`
+          }
+          style={{
+            color: brand.accentColor,
+            fontWeight: 600,
+            textDecoration: "underline",
+          }}
+        >
+          {story.productHandle ? "Buy now →" : "Visit store →"}
+        </a>
+      </p>
     </main>
   );
 }
