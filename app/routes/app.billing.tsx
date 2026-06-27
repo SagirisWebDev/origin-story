@@ -119,7 +119,7 @@ export default function Billing() {
         <s-stack gap="base">
           <s-paragraph>
             Unlock custom story fields, scan analytics, and priority support
-            for $1/month while we're in early access.
+            for $19/month.
           </s-paragraph>
           <s-paragraph>
             14-day free trial — cancel anytime from this page.
