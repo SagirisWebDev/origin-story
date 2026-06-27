@@ -19,11 +19,6 @@ function Extension() {
   const [paid, setPaid] = useState(false);
   const [firstMediaGid, setFirstMediaGid] = useState(null);
   const [successFlash, setSuccessFlash] = useState(false);
-  // Optional fields (hero image GID, custom fields) live behind a toggle to
-  // keep the block under Shopify's "Block too tall" threshold. We never
-  // auto-open it: even when there are saved values, auto-opening would push
-  // the block over the height limit on every revisit.
-  const [showMore, setShowMore] = useState(false);
   const [form, setForm] = useState({
     origin: "",
     maker: "",
@@ -165,21 +160,8 @@ function Extension() {
           />
         </s-grid>
 
-        <s-clickable onClick={() => setShowMore((v) => !v)}>
-          <s-text type="strong">
-            {showMore
-              ? "Hide advanced ▴"
-              : `Show advanced ▾${
-                  form.heroImageId || (form.customFields ?? []).length > 0
-                    ? " (has saved data)"
-                    : ""
-                }`}
-          </s-text>
-        </s-clickable>
-
-        {showMore ? (
-          <s-stack direction="block" gap="small-200">
-            {form.heroImageId ? (
+        <s-stack direction="block" gap="small-200">
+          {form.heroImageId ? (
               <s-stack direction="inline" gap="small-200" alignItems="center">
                 <s-text>✓ Hero image set</s-text>
                 <s-clickable
@@ -274,8 +256,7 @@ function Extension() {
                 </s-link>
               </s-stack>
             )}
-          </s-stack>
-        ) : null}
+        </s-stack>
 
         <s-stack direction="inline" gap="base" alignItems="center">
           <s-button
