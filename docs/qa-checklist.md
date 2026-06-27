@@ -20,11 +20,11 @@
 
 - [x] **3. Final dev QA** (see checklist below) — completed 2026-06-27; install/uninstall lifecycle verified on a fresh dev store (`fresh-install-pio0ju3s.myshopify.com`), `APP_UNINSTALLED` webhook fires and cleans up `BrandSettings`, `ScanEvent`, and `Session` rows.
 
-- [ ] **4. README + install docs**
-  - [ ] What the app does (one paragraph)
-  - [ ] Custom install URL for freelance clients
-  - [ ] First-time setup walkthrough (Brand → create first story → test scan)
-  - [ ] Troubleshooting (admin block too tall, billing not enabled, etc.)
+- [ ] **4. README + install docs** — drafted 2026-06-27; two-file split (`README.md` for devs, `docs/install.md` for merchants). Support email set to `support@sagirisdev.com`. Install URL placeholder remains — distribution is public (App Store only), so the URL won't exist until milestone 1 (App Store listing) is approved.
+  - [x] What the app does (one paragraph) — in both files
+  - [ ] Custom install URL for freelance clients — **blocked on milestone 1** (App Store review/approval); install.md points at apps.shopify.com with a TODO marker
+  - [x] First-time setup walkthrough (Brand → create first story → test scan) — in `docs/install.md`
+  - [x] Troubleshooting (admin block too tall, billing not enabled, etc.) — in `docs/install.md`
 
 - [ ] **5. GDPR / privacy**
   - [ ] Privacy policy text that matches what the app actually stores (Session, BrandSettings, ScanEvent — call out IP/UA handling)
