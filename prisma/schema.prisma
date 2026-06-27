@@ -38,6 +38,28 @@ model BrandSettings {
   logoUrl     String?
   accentColor String?
   fontFamily  String?
+
+  // Free-tier styling (added in slice 14)
+  backgroundColor    String?
+  textColor          String?
+  headingColor       String?
+  buttonBgColor      String?
+  buttonTextColor    String?
+  headingFontFamily  String?
+  borderRadiusScale  String?
+  buttonStyle        String?
+
+  // Pro-tier styling (added in slice 14)
+  linkColor          String?
+  borderColor        String?
+  headingFontWeight  String?
+  bodyFontWeight     String?
+  typeScale          String?
+  pageMaxWidth       String?
+  sectionSpacing     String?
+  customFontUrl      String?
+  customCss          String?
+
   updatedAt   DateTime @updatedAt
 }
 

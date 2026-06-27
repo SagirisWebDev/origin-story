@@ -19,11 +19,33 @@ import { getBrand, saveBrand } from "./BrandSettings.server.js";
 
 const SHOP = "test-shop.myshopify.com";
 
+// Mirrors DEFAULTS in BrandSettings.server.js — slice 14 added 17 styling
+// fields. Kept in lock-step here so the strict-equal test below catches any
+// silent shift in the user-visible defaults.
 const DEFAULT_BRAND = {
   shop: SHOP,
   logoUrl: null,
   accentColor: "#1f5e3a",
   fontFamily: "Inter, system-ui, sans-serif",
+
+  backgroundColor: "#ffffff",
+  textColor: "#1a1a1a",
+  headingColor: "#1a1a1a",
+  buttonBgColor: "#1f5e3a",
+  buttonTextColor: "#ffffff",
+  headingFontFamily: "Inter, system-ui, sans-serif",
+  borderRadiusScale: "medium",
+  buttonStyle: "solid",
+
+  linkColor: "#1f5e3a",
+  borderColor: "#e1e3e5",
+  headingFontWeight: "600",
+  bodyFontWeight: "400",
+  typeScale: "medium",
+  pageMaxWidth: "640px",
+  sectionSpacing: "comfortable",
+  customFontUrl: null,
+  customCss: null,
 };
 
 beforeEach(() => {
@@ -196,5 +218,102 @@ describe("saveBrand", () => {
     });
 
     expect(result).toBe(row);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Slice 14: new styling fields round-trip through saveBrand/getBrand
+  // ---------------------------------------------------------------------------
+
+  it("persists all 17 new styling fields through update + create branches", async () => {
+    prisma.brandSettings.upsert.mockResolvedValue(successUpsertResponse());
+
+    const data = {
+      // free
+      backgroundColor: "#fafafa",
+      textColor: "#222222",
+      headingColor: "#000000",
+      buttonBgColor: "#ff5500",
+      buttonTextColor: "#ffffff",
+      headingFontFamily: "Georgia, serif",
+      borderRadiusScale: "large",
+      buttonStyle: "outline",
+      // pro
+      linkColor: "#0066cc",
+      borderColor: "#dddddd",
+      headingFontWeight: "700",
+      bodyFontWeight: "500",
+      typeScale: "large",
+      pageMaxWidth: "800px",
+      sectionSpacing: "spacious",
+      customFontUrl: "https://fonts.googleapis.com/css2?family=Lora",
+      customCss: ".brand-logo { filter: invert(1); }",
+    };
+
+    await saveBrand(SHOP, data);
+
+    const [args] = prisma.brandSettings.upsert.mock.calls[0];
+    expect(args.update).toMatchObject(data);
+    expect(args.create).toMatchObject({ shop: SHOP, ...data });
+  });
+
+  it("nulls a styling field when the form omits it (allows clearing back to default)", async () => {
+    prisma.brandSettings.upsert.mockResolvedValue(successUpsertResponse());
+
+    await saveBrand(SHOP, {
+      // Only one field set; the rest should land as nulls so getBrand can
+      // re-apply DEFAULTS for the unfilled keys.
+      backgroundColor: "#fafafa",
+    });
+
+    const [args] = prisma.brandSettings.upsert.mock.calls[0];
+    expect(args.update.backgroundColor).toBe("#fafafa");
+    expect(args.update.headingColor).toBeNull();
+    expect(args.update.customCss).toBeNull();
+  });
+
+  it("getBrand merges saved styling fields with DEFAULTS for null fields", async () => {
+    prisma.brandSettings.findUnique.mockResolvedValue({
+      shop: SHOP,
+      logoUrl: null,
+      accentColor: "#bb2244",
+      fontFamily: null,
+      backgroundColor: "#fafafa",
+      textColor: null,
+      headingColor: "#000000",
+      buttonBgColor: null,
+      buttonTextColor: null,
+      headingFontFamily: null,
+      borderRadiusScale: "large",
+      buttonStyle: null,
+      linkColor: null,
+      borderColor: null,
+      headingFontWeight: null,
+      bodyFontWeight: null,
+      typeScale: null,
+      pageMaxWidth: null,
+      sectionSpacing: null,
+      customFontUrl: null,
+      customCss: null,
+      updatedAt: new Date(),
+    });
+
+    const result = await getBrand(SHOP);
+
+    // Saved values are preserved.
+    expect(result.accentColor).toBe("#bb2244");
+    expect(result.backgroundColor).toBe("#fafafa");
+    expect(result.headingColor).toBe("#000000");
+    expect(result.borderRadiusScale).toBe("large");
+
+    // Nulled values fall back to defaults.
+    expect(result.fontFamily).toBe("Inter, system-ui, sans-serif");
+    expect(result.textColor).toBe("#1a1a1a");
+    expect(result.buttonBgColor).toBe("#1f5e3a");
+    expect(result.borderColor).toBe("#e1e3e5");
+    expect(result.pageMaxWidth).toBe("640px");
+
+    // Nullable-by-default fields stay null.
+    expect(result.customFontUrl).toBeNull();
+    expect(result.customCss).toBeNull();
   });
 });
