@@ -28,8 +28,8 @@ async function buildQRCodes(handle, shop) {
 }
 
 export async function loader({ request, params }) {
-  const { admin, session } = await authenticate.admin(request);
-  const flags = getFeatureFlags(session.shop);
+  const { admin, session, billing } = await authenticate.admin(request);
+  const flags = await getFeatureFlags(billing);
 
   if (params.id === "new") {
     return {

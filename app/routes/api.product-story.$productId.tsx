@@ -30,10 +30,10 @@ function decodeProductId(raw: string | undefined): string {
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const { admin, session, cors } = await authenticate.admin(request);
+  const { admin, session, cors, billing } = await authenticate.admin(request);
   const productId = decodeProductId(params.productId);
   const shop = session?.shop;
-  const flags = getFeatureFlags(shop);
+  const flags = await getFeatureFlags(billing);
 
   const story = await getStoryByProductId(productId, admin.graphql);
 

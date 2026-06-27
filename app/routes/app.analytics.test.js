@@ -60,8 +60,12 @@ function makeAdmin() {
   return { graphql: vi.fn() };
 }
 
+// Slice 12 (issue #15): the loader now passes the `billing` context to
+// getFeatureFlags. The mock returns a sentinel — real billing.check is
+// covered in featureFlags.server.test.js.
+const MOCK_BILLING = { check: () => Promise.resolve({ hasActivePayment: true }) };
 function makeAuthResult(admin) {
-  return { admin, session: { shop: SHOP } };
+  return { admin, session: { shop: SHOP }, billing: MOCK_BILLING };
 }
 
 function buildRequest() {
@@ -97,14 +101,14 @@ describe("app.analytics loader", () => {
     expect(authenticate.admin).toHaveBeenCalledWith(request);
   });
 
-  it("calls getFeatureFlags exactly once with the session.shop", async () => {
+  it("calls getFeatureFlags exactly once with the billing context", async () => {
     const admin = makeAdmin();
     authenticate.admin.mockResolvedValue(makeAuthResult(admin));
 
     await loader({ request: buildRequest(), params: {}, context: {} });
 
     expect(getFeatureFlags).toHaveBeenCalledTimes(1);
-    expect(getFeatureFlags).toHaveBeenCalledWith(SHOP);
+    expect(getFeatureFlags).toHaveBeenCalledWith(MOCK_BILLING);
   });
 
   it("when paid: true, calls scansPerDay(session.shop, 30)", async () => {

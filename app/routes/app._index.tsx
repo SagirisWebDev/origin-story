@@ -21,9 +21,9 @@ type Story = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, billing } = await authenticate.admin(request);
   const stories = (await listStories(admin.graphql)) as Story[];
-  const flags = getFeatureFlags(session.shop);
+  const flags = await getFeatureFlags(billing);
 
   let scans: Record<string, number> = {};
   if (flags.paid) {

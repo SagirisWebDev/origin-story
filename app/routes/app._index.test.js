@@ -125,8 +125,12 @@ const SHOP = "test-shop.myshopify.com";
 // Default session shape passed alongside `admin` from `authenticate.admin`.
 // Slice 7 (issue #9): the loader reads `session.shop` to feed the feature-flag
 // helper and the scan-count aggregator.
+// Slice 12 (issue #15): the loader now passes the `billing` context to
+// getFeatureFlags. Tests don't exercise the real billing.check — that's
+// covered in featureFlags.server.test.js — so a sentinel object is enough.
+const MOCK_BILLING = { check: () => Promise.resolve({ hasActivePayment: true }) };
 function makeAuthResult(admin) {
-  return { admin, session: { shop: SHOP } };
+  return { admin, session: { shop: SHOP }, billing: MOCK_BILLING };
 }
 
 describe("app._index loader", () => {
@@ -203,7 +207,7 @@ describe("app._index loader", () => {
   // Slice 7 (issue #9): feature-flag gating + scan-count aggregation
   // ---------------------------------------------------------------------------
 
-  it("calls getFeatureFlags exactly once with the session.shop", async () => {
+  it("calls getFeatureFlags exactly once with the billing context", async () => {
     const admin = makeAdmin();
     authenticate.admin.mockResolvedValue(makeAuthResult(admin));
     listStories.mockResolvedValue([]);
@@ -211,7 +215,7 @@ describe("app._index loader", () => {
     await loader({ request: buildRequest(), params: {}, context: {} });
 
     expect(getFeatureFlags).toHaveBeenCalledTimes(1);
-    expect(getFeatureFlags).toHaveBeenCalledWith(SHOP);
+    expect(getFeatureFlags).toHaveBeenCalledWith(MOCK_BILLING);
   });
 
   it("when paid: true, calls countScansByHandles with the array of story handles", async () => {

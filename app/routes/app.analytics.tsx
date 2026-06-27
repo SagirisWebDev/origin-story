@@ -9,8 +9,8 @@ import { scansPerDay } from "../models/ScanTracker.server.js";
 type Bucket = { date: string; count: number };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
-  const flags = getFeatureFlags(session.shop);
+  const { session, billing } = await authenticate.admin(request);
+  const flags = await getFeatureFlags(billing);
 
   if (!flags.paid) {
     return { flags, data: [] as Bucket[] };
