@@ -32,6 +32,12 @@
   - [x] Data retention statement — in `docs/privacy-policy.md`; "kept while installed, deleted on uninstall (immediate via `app/uninstalled`, safety-net pass 48h later via `shop/redact`)".
   - [x] Privacy policy hosted publicly at <https://www.sagirisdev.com/privacy-policy/> — use this URL in the App Store listing's "Privacy policy" field.
 
+- [x] **6. Production deployment** — completed 2026-06-28. App live at <https://originstory.fly.dev> on Fly.io (`ord` region), Postgres on Neon (`us-east-2`). Install flow verified end-to-end on `fresh-install-pio0ju3s.myshopify.com` — OAuth → session creation in Neon → admin renders, all 4 tabs working.
+  - [x] Prisma migrated from SQLite to Postgres (Neon) — `prisma/schema.prisma` provider switched, baseline migration `20260628002232_init_postgres` committed, 204 tests still pass.
+  - [x] `fly.toml`, `Dockerfile`, `.dockerignore` generated and tuned — `npx prisma generate` moved to build time, `.env` excluded from image, `release_command` runs `prisma migrate deploy` on every deploy.
+  - [x] Fly secrets set — `SHOPIFY_API_SECRET`, `DATABASE_URL` (pooled), `DIRECT_URL` (direct).
+  - [x] `shopify.app.toml` `application_url` switched to `https://originstory.fly.dev`; pushed as `originstory-7`.
+
 ---
 
 ## Dev QA checklist — verify each slice end-to-end

@@ -87,7 +87,7 @@ docs/
 
 ### Hosting
 
-Production hosting is currently TBD — the React Router server can be deployed to any Node 20+ host (Fly.io, Render, Google Cloud Run, etc.). The SQLite database in `prisma/dev.sqlite` is dev-only; production needs a hosted database (Postgres recommended) configured via `DATABASE_URL` and the [Prisma session storage adapter](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md).
+Live at **[originstory.fly.dev](https://originstory.fly.dev)** — deployed to [Fly.io](https://fly.io) in the `ord` (Chicago) region. Postgres is hosted on **[Neon](https://neon.tech)** (free tier, `us-east-2` Ohio); connection wired via the `DATABASE_URL` + `DIRECT_URL` Fly secrets and the [Prisma session storage adapter](https://github.com/Shopify/shopify-api-js/blob/main/packages/shopify-api/docs/guides/session-storage.md). Deploy with `fly deploy --remote-only`; the release command runs `npx prisma migrate deploy` against Neon before each rollout. Auto-stop is on by default — machines sleep when idle (~2s cold start). The legacy `prisma/dev.sqlite` is unused; both dev and prod talk to Neon Postgres.
 
 ### Domain model
 

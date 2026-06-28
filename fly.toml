@@ -1,0 +1,32 @@
+# fly.toml app configuration file generated for originstory on 2026-06-27T18:38:05-06:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'originstory'
+primary_region = 'ord'
+
+[build]
+
+[deploy]
+  release_command = 'npx prisma migrate deploy'
+
+[env]
+  HOST = '0.0.0.0'
+  PORT = '3000'
+  SCOPES = 'write_metaobject_definitions,write_metaobjects,write_products'
+  SHOPIFY_API_KEY = '723113567fcc4b3432f73fa36cb45e68'
+  SHOPIFY_APP_URL = 'https://originstory.fly.dev'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ['app']
+
+[[vm]]
+  memory = '1gb'
+  cpus = 1
+  memory_mb = 1024

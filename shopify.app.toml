@@ -2,7 +2,7 @@
 
 client_id = "723113567fcc4b3432f73fa36cb45e68"
 name = "OriginStory"
-application_url = "https://example.com"
+application_url = "https://originstory.fly.dev"
 embedded = true
 
 [build]
@@ -33,7 +33,11 @@ api_version = "2026-07"
 scopes = "write_products,write_metaobjects,write_metaobject_definitions"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [
+  "https://originstory.fly.dev/auth/callback",
+  "https://originstory.fly.dev/auth/shopify/callback",
+  "https://originstory.fly.dev/api/auth/callback"
+]
 
 [metaobjects.app.product_story]
 name = "Product Story"
