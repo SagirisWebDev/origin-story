@@ -26,10 +26,11 @@
   - [x] First-time setup walkthrough (Brand → create first story → test scan) — in `docs/install.md`
   - [x] Troubleshooting (admin block too tall, billing not enabled, etc.) — in `docs/install.md`
 
-- [ ] **5. GDPR / privacy**
-  - [ ] Privacy policy text that matches what the app actually stores (Session, BrandSettings, ScanEvent — call out IP/UA handling)
-  - [ ] Verify `webhooks/customers/redact`, `customers/data_request`, `shop/redact` handlers exist and do the right thing
-  - [ ] Data retention statement (how long ScanEvent rows are kept, etc.)
+- [x] **5. GDPR / privacy** — completed 2026-06-27. Handlers shipped (`originstory-6`), privacy policy drafted at `docs/privacy-policy.md` (all placeholders resolved: Edmonton + Fly.io + Neon), and the policy is now hosted publicly at <https://www.sagirisdev.com/privacy-policy/> for the App Store listing.
+  - [x] Privacy policy text that matches what the app actually stores — `docs/privacy-policy.md`; covers Session (merchant only), BrandSettings, ScanEvent. Explicit: no IP, no raw UA, no customer PII.
+  - [x] GDPR webhook handlers exist and respond 200 OK — `webhooks.customers.data_request.tsx` (no-op, no customer data), `webhooks.customers.redact.tsx` (no-op), `webhooks.shop.redact.tsx` (defensive re-cleanup of BrandSettings + ScanEvent + Session). 9 new tests pass.
+  - [x] Data retention statement — in `docs/privacy-policy.md`; "kept while installed, deleted on uninstall (immediate via `app/uninstalled`, safety-net pass 48h later via `shop/redact`)".
+  - [x] Privacy policy hosted publicly at <https://www.sagirisdev.com/privacy-policy/> — use this URL in the App Store listing's "Privacy policy" field.
 
 ---
 
